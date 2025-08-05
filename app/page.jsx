@@ -1,12 +1,26 @@
 "use client";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { ShoppingCart, Rocket } from "lucide-react";
 
 export default function LandingPage() {
-  const installLink = `https://admin.shopify.com/oauth/install_custom_app?client_id=${process.env.SHOPIFY_API_KEY}&scope=read_checkouts,read_customers,write_discounts&redirect_uri=${encodeURIComponent(process.env.SHOPIFY_REDIRECT_URI)}`;
+  const [installLink, setInstallLink] = useState("#");
 
-  
+  useEffect(() => {
+    const fetchInstallUrl = async () => {
+      try {
+        const response = await fetch('/api/install-url');
+        const data = await response.json();
+        setInstallLink(data.url);
+      } catch (error) {
+        console.error("Failed to fetch install URL:", error);
+      }
+    };
+
+    fetchInstallUrl();
+  }, []);
+
   return (
     <main className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 px-4 py-12">
       <Card className="w-full max-w-md">
@@ -25,19 +39,13 @@ export default function LandingPage() {
             onClick={() => window.open(installLink, "_blank")}
             className="w-full"
             size="lg"
+            disabled={installLink === "#"}
           >
             <Rocket className="mr-2 h-4 w-4" />
-            Get started for free
+            {installLink === "#" ? "Loading..." : "Get started for free"}
           </Button>
-
         </CardContent>
 
-        <CardFooter className="text-xs text-gray-500 text-center">
-          <p>
-            <strong>Pro Tip:</strong> For the best experience, access CartBounce directly from{" "}
-            <strong>Shopify Admin → Apps</strong>
-          </p>
-        </CardFooter>
       </Card>
     </main>
   );
