@@ -6,8 +6,13 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const shop = searchParams.get("shop");
   const code = searchParams.get("code");
+  const isEmbedded = req.headers.get('sec-fetch-dest') === 'iframe';
+
   if (!shop || !code) {
-    return NextResponse.json({ error: "Missing shop or code parameter", type: "param_error" }, { status: 400 });
+    return NextResponse.json({ 
+      error: "Missing shop or code parameter", 
+      type: "param_error" 
+    }, { status: 400 });
   }
 
   const clientId = process.env.SHOPIFY_API_KEY;
@@ -15,7 +20,7 @@ export async function GET(req) {
   const redirectUri = process.env.SHOPIFY_REDIRECT_URI;
 
   try {
-    // 1. Schimbă codul pe access_token
+    // 1. Obține access token
     const response = await axios.post(
       `https://${shop}/admin/oauth/access_token`,
       {
@@ -24,18 +29,14 @@ export async function GET(req) {
         code,
         redirect_uri: redirectUri,
       },
-      {
-        headers: { "Content-Type": "application/json" }
-      }
+      { headers: { "Content-Type": "application/json" } }
     );
     const accessToken = response.data.access_token;
 
-    // 2. Ia detalii shop
+    // 2. Obține detalii magazin
     const shopDetailsRes = await axios.get(
       `https://${shop}/admin/api/2023-07/shop.json`,
-      {
-        headers: { "X-Shopify-Access-Token": accessToken }
-      }
+      { headers: { "X-Shopify-Access-Token": accessToken } }
     );
     const shopInfo = shopDetailsRes.data.shop;
 
@@ -50,23 +51,23 @@ export async function GET(req) {
         installed_at: new Date().toISOString()
       }], { onConflict: ['shop'] });
 
-    if (error) {
-      console.error("Supabase error:", error);
-      return NextResponse.json({ error: "DB error", type: "db_error" }, { status: 500 });
-    }
+    if (error) throw new Error("Database error: " + error.message);
 
-    // 4. Redirect către dashboard (URL absolut!)
-    return NextResponse.redirect(`https://cartbounce.vercel.app/dashboard?shop=${shop}`);
-  } catch (error) {
-    let errorType = "unknown";
-    let errorMsg = "OAuth error";
-    if (error.response) {
-      errorType = error.response.data?.error || error.response.statusText;
-      errorMsg = error.response.data?.error_description || error.response.data?.message || error.message;
+    // 4. Redirecționare inteligentă
+    if (isEmbedded) {
+      // Rămâi în iframe-ul Shopify Admin
+      const appEmbedUrl = `https://${shop}/admin/apps/${clientId}`;
+      return NextResponse.redirect(appEmbedUrl);
     } else {
-      errorMsg = error.message;
+      // Fallback pentru browser normal (dezvăluirea aplicației)
+      return NextResponse.redirect(`https://${shop}/admin/apps/${clientId}`);
     }
-    console.error("OAuth error:", { type: errorType, message: errorMsg, data: error.response?.data });
-    return NextResponse.json({ error: errorMsg, type: errorType, data: error.response?.data }, { status: 500 });
+    
+  } catch (error) {
+    console.error("Auth error:", error.message);
+    return NextResponse.json(
+      { error: "Authentication failed", details: error.message },
+      { status: 500 }
+    );
   }
 }

@@ -1,10 +1,11 @@
 "use client";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export default function Dashboard() {
   const searchParams = useSearchParams();
   const shop = searchParams.get("shop");
+  const router = useRouter();
   const [shopInfo, setShopInfo] = useState(null);
   const [checkouts, setCheckouts] = useState([]);
   const [sending, setSending] = useState(null);
@@ -28,7 +29,11 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    if (!shop) return;
+    if (!shop) {
+      // Dacă nu ai shop-ul, nu ai cum să identifici userul
+      router.push("/");
+      return;
+    }
     fetch(`/api/shopify/user?shop=${shop}`)
       .then((res) => res.json())
       .then((data) => setShopInfo(data));
